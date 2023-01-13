@@ -1,6 +1,6 @@
-use std::net::{SocketAddr, TcpStream};
 use crossbeam_channel::Receiver;
-use polling::{Event, Poller};
+use polling::Event;
+
 use crate::channel::Channel;
 
 pub type WorkUnit = Work;

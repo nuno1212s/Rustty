@@ -1,14 +1,15 @@
-use std::error::Error;
+mod tcp_server;
+
 use std::io;
-use std::net::{IpAddr, SocketAddr, TcpListener};
-use std::net::ToSocketAddrs;
+use std::net::{TcpListener};
 use polling::{Event, Poller};
+use crate::channel::{Channel, ChannelNetwork};
 use crate::config::ServerConfig;
-use crate::event_group::EventGroup;
+use crate::event_group::{EventGroup, EventLoopHandle};
 
 struct Server {
     config: ServerConfig,
-    event_group: EventGroup
+    event_group: EventLoopHandle
 }
 
 impl Server {
@@ -27,7 +28,7 @@ impl Server {
             }
         };
 
-        //TODO: Apply any custom options to tcp listener
+        tcp_listener.set_nonblocking(true).unwrap();
 
         std::thread::Builder::new().name(format!("Server {:?}", self.config.bind_addr()))
             .spawn(move || {
@@ -46,7 +47,22 @@ impl Server {
 
                     for event in &events {
                         if event.key == key {
+                            let tcp_conn = tcp_listener.accept();
 
+                            match tcp_conn {
+                                Ok((conn, addr)) => {
+
+                                    conn.set_nonblocking(true).expect("Failed to make connection non blocking");
+
+                                    let channel = Channel::new(1,
+                                    ChannelNetwork::new(addr, Box::new(conn)));
+
+                                    self.event_group.register_new_connection(channel)
+                                }
+                                Err(err) => {
+
+                                }
+                            }
                         }
                     }
 

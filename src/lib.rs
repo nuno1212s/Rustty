@@ -2,6 +2,7 @@ mod server;
 mod config;
 mod event_group;
 mod channel;
+mod util;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right
