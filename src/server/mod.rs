@@ -1,18 +1,33 @@
 mod tcp_server;
 
 use std::io;
-use std::net::{TcpListener};
+use std::net::{TcpListener, ToSocketAddrs};
 use polling::{Event, Poller};
 use crate::channel::{Channel, ChannelNetwork};
 use crate::config::ServerConfig;
-use crate::event_group::{EventGroup, EventLoopHandle};
+use crate::event_group::{EventGroup, EventGroupHandle};
+use std::io::Result;
 
 struct Server {
     config: ServerConfig,
-    event_group: EventLoopHandle
+    event_group: EventGroupHandle
+}
+
+pub trait NetworkServer {
+
+    fn bind<A: ToSocketAddrs>(addr: A) -> Result<Box<dyn NetworkServer>>;
+
+    fn accept(&mut self);
+
 }
 
 impl Server {
+
+    pub fn bind(config: ServerConfig) {
+        let handle = EventGroup::initialize_event_group(0, config.base_config().event_loop_thread_count());
+
+
+    }
 
     fn begin(self) -> io::Result<()> {
         let bind_result = TcpListener::bind((self.config.bind_addr(), self.config.port()));

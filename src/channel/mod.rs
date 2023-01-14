@@ -7,6 +7,7 @@ pub struct Channel {
     id: usize,
     network: ChannelNetwork,
     //TODO: Maybe add a pipeline to this?
+    pipeline: Vec<fn(Vec<u8>) -> Vec<u8>>
 }
 
 pub struct ChannelNetwork {
@@ -26,7 +27,8 @@ impl Channel {
     pub fn new(id: usize, network: ChannelNetwork) -> Arc<Self> {
         Arc::new(Channel {
             id,
-            network
+            network,
+            pipeline: vec![],
         })
     }
 

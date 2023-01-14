@@ -1,41 +1,38 @@
+use std::sync::Arc;
 use crossbeam_channel::Receiver;
 use polling::Event;
 
 use crate::channel::Channel;
+use crate::event_group::{EventGroupCommon, EventGroupHandle};
 
-pub type WorkUnit = Work;
+type Work = IOWork;
 
-pub struct Work {
-    event: Event,
-    channel: Channel
+struct IOWork {
+    channel: Arc<Channel>,
+    event: Event
 }
 
-/// The event loop threads. These threads are responsible
-pub struct EventLoop {
-    work_received: Receiver<Work>
+pub struct EventGroupWorker {
+    
+    ev_group_worker_id: usize,
+    ev_group_info: EventGroupHandle,
+
+    work_receiver: Receiver<Work>,
 }
 
-impl EventLoop {
-
-    fn begin(self) {
+impl EventGroupWorker {
+    
+    pub fn begin(self) {
         loop {
-
-            if let Ok(work) = self.work_received.recv() {
-
-                let Work {
-                    event,
-                    channel
-                } = work;
-
-                if event.readable {
-
-                }
-
-                if event.writable {
-
+            match self.work_receiver.recv() {
+                Ok(_) => {}
+                Err(err) => {
+                    
+                    break
                 }
             }
+            
         }
     }
-
+    
 }
