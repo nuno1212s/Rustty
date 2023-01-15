@@ -2,7 +2,11 @@ use std::net::IpAddr;
 
 /// The base configuration, common to both servers and clients
 pub struct BaseConfig {
-    event_loop_thread_count: usize
+
+    event_loop_thread_count: usize,
+
+    /// The default size of the pending tx vector
+    pending_tx_base_vec_size: usize,
 }
 
 /// Communication that is related to the server, in conjunction with the base configurations
@@ -30,5 +34,9 @@ impl ServerConfig {
 impl BaseConfig {
     pub fn event_loop_thread_count(&self) -> usize {
         self.event_loop_thread_count
+    }
+
+    pub fn pending_tx_base_vec_size(&self) -> usize {
+        self.pending_tx_base_vec_size
     }
 }

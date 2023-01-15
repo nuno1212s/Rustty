@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use crossbeam_channel::{Receiver, Sender};
+use log::error;
 use polling::{Event, Poller};
 use crate::channel::Channel;
 
@@ -74,19 +76,39 @@ impl EventGroup {
 
                     //Receive the events. Add a 5 ms max time to register new connections
                     //And delete previous connections
-                    if self.poller.wait(&mut events, Some(Duration::from_millis(5))).unwrap() > 0 {
+                    let duration = Duration::from_millis(5);
+
+                    let poll_result = self.poller.wait(&mut events,
+                                                       Some(duration));
+
+                    let collected_events = match poll_result {
+
+                        Ok(collected) => {collected}
+                        Err(err) => {
+                            error!("Failed to get epoll results because {:?}", err);
+
+                            //Maybe break here? Not sure on how the API works still
+                            continue
+                        }
+                    };
+
+                    if collected_events > 0 {
+
                         for ev in &events {
                             let channel_id = ev.key;
 
-                            if let Some(channel) = self.currently_connected.get(&channel_id) {
-                                self.poller.modify(channel.network().raw_fd(), Event::readable(channel_id))
-                                    .unwrap();
+                            if !ev.writable && !ev.readable {
+                                //This means the connection must have suffered some sort of issue.
+                                self.remove_connection(channel_id);
+
+                                continue
                             }
+
                         }
 
-                        let events_to_deliver: Vec<Event> = events.drain(..).collect();
-
-                        self.workers.deliver_io_work(events_to_deliver);
+                        self.workers.deliver_io_work(events);
+                        //Restate the variable, since we just disposed of the previous value
+                        events = Vec::with_capacity(EVENT_LIMIT);
                     }
 
                     //Listen to any messages intended for the event group, such as new connections
@@ -94,21 +116,30 @@ impl EventGroup {
                     while let Ok(channel) = self.event_messages.try_recv() {
                         match channel {
                             EventGroupMessage::AddConnection(channel) => {
-                                self.currently_connected.insert(channel.id(), channel.clone());
-
-                                self.poller.modify(channel.network().raw_fd(), Event::readable(channel.id())).unwrap();
+                                self.add_connection(channel);
                             }
                             EventGroupMessage::RemoveConnection(channel_id) => {
-                                if let Some(channel) = self.currently_connected.remove(&channel_id) {
-                                    //Delete the channel from our pool
-                                    self.poller.delete(channel.network().raw_fd()).unwrap();
-                                }
+                                self.remove_connection(channel_id);
                             }
                         }
 
                     }
                 }
             }).expect("Failed to launch event loop thread");
+    }
+
+
+    fn add_connection(&mut self, channel: Arc<Channel>) {
+        self.currently_connected.insert(channel.id(), channel.clone());
+
+        self.poller.modify(channel.network().raw_fd(), Event::readable(channel.id())).unwrap();
+    }
+
+    fn remove_connection(&mut self, channel_id: usize) {
+        if let Some(channel) = self.currently_connected.remove(&channel_id) {
+            //Delete the channel from our pool
+            self.poller.delete(channel.network().raw_fd()).unwrap();
+        }
     }
 }
 
@@ -122,8 +153,20 @@ impl EventGroupWorkers {
 
 impl EventGroupHandle {
 
-    pub fn register_new_connection(&self, channel: Arc<Channel>) {
+    pub(crate) fn register_new_connection(&self, channel: Arc<Channel>) {
         self.tx.send(EventGroupMessage::AddConnection(channel)).unwrap();
+    }
+
+    pub(crate) fn register_write_intention(&self, channel: &Channel) {
+
+    }
+
+    pub(crate) fn close_connection(&self, channel: &Arc<Channel>, err: Option<impl Error>) {
+
+        self.tx.send(EventGroupMessage::RemoveConnection(channel.id())).unwrap();
+
+        //TODO: Call handler method to notify of disconnection
+
     }
 
 }

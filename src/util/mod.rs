@@ -14,6 +14,7 @@ pub trait Stream: Read + Write + AsRawFd + Send {}
 
 
 pub trait NetworkServer<T>: AsRawFd where T: Stream {
+
     fn accept(&mut self) -> (T, SocketAddr);
 
 }
